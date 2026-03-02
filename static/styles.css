@@ -1,0 +1,48 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+.container {
+  max-width: 1100px;
+  margin: 20px auto;
+  padding: 16px;
+}
+.controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+input,
+select,
+button {
+  border: 1px solid #334155;
+  border-radius: 6px;
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 10px;
+}
+button {
+  cursor: pointer;
+  background: #0369a1;
+}
+#chart {
+  height: 420px;
+  margin-top: 18px;
+}
+.result {
+  padding: 12px;
+  background: #1e293b;
+  border-radius: 6px;
+  line-height: 1.6;
+}
+#history {
+  list-style: none;
+  padding: 0;
+}
+#history li {
+  border-bottom: 1px solid #334155;
+  padding: 6px 0;
+}
