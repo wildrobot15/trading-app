@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Groww Intraday Analyzer</title>
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+    .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px,1fr)); gap: 12px; margin-bottom: 14px; }
+    input, select, button { padding: 10px; border-radius: 8px; border: 1px solid #334155; background: #1e293b; color: #fff; }
+    button { cursor: pointer; background: #2563eb; }
+    #chart { height: 420px; border: 1px solid #334155; border-radius: 8px; margin-top: 10px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 10px; margin-top: 12px; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 10px; }
+    .small { font-size: 0.85rem; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Groww Intraday BUY/SELL Advisor</h2>
+    <div class="controls">
+      <input id="apiKey" placeholder="Groww API Key (daily)" />
+      <input id="stock" placeholder="Stock symbol (RELIANCE)" value="RELIANCE" />
+      <select id="timeframe"><option>1m</option><option selected>5m</option><option>15m</option></select>
+      <select id="mode"><option value="conservative">Conservative</option><option value="aggressive">Aggressive</option></select>
+      <button id="analyzeBtn">Analyze</button>
+    </div>
+    <div id="status" class="small"></div>
+    <div id="chart"></div>
+    <div id="result" class="cards"></div>
+  </div>
+
+  <script>
+    const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+      layout: { background: { color: '#0f172a' }, textColor: '#e2e8f0' },
+      grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
+      rightPriceScale: { borderColor: '#334155' }, timeScale: { borderColor: '#334155' }
+    });
+    const candleSeries = chart.addCandlestickSeries();
+
+    let refreshTimer;
+    let lastCandles = [];
+
+    function card(title, value) {
+      return `<div class="card"><div class="small">${title}</div><div>${value ?? '-'}</div></div>`;
+    }
+
+    function setMarkers(plan) {
+      const markers = [];
+      const lastData = lastCandles[lastCandles.length - 1];
+      if (!lastData) return;
+      const t = lastData.time;
+      if (plan.best_buy) {
+        markers.push({ time: t, position: 'belowBar', color: '#22c55e', shape: 'arrowUp', text: `BUY ${plan.best_buy}` });
+      }
+      if (plan.best_sell) {
+        markers.push({ time: t, position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: `SELL ${plan.best_sell}` });
+      }
+      candleSeries.setMarkers(markers);
+    }
+
+    async function runAnalysis() {
+      const payload = {
+        api_key: document.getElementById('apiKey').value.trim(),
+        stock: document.getElementById('stock').value.trim(),
+        timeframe: document.getElementById('timeframe').value,
+        mode: document.getElementById('mode').value,
+      };
+
+      if (!payload.api_key || !payload.stock) {
+        document.getElementById('status').textContent = 'API key and stock symbol are required.';
+        return;
+      }
+      document.getElementById('status').textContent = 'Analyzing...';
+
+      try {
+        const res = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Analysis failed');
+
+        lastCandles = data.indicators.candles;
+        candleSeries.setData(lastCandles);
+        chart.timeScale().fitContent();
+        setMarkers(data.plan);
+
+        const html = [
+          card('Stock', data.stock),
+          card('Trend', data.plan.trend),
+          card('Signal', data.plan.signal),
+          card('Confidence', `${data.plan.confidence}%`),
+          card('Best Buy', data.plan.best_buy ? `₹${data.plan.best_buy}` : '-'),
+          card('Best Sell', data.plan.best_sell ? `₹${data.plan.best_sell}` : '-'),
+          card('Stop Loss', data.plan.stop_loss ? `₹${data.plan.stop_loss}` : '-'),
+          card('Target 1', data.plan.target_1 ? `₹${data.plan.target_1}` : '-'),
+          card('Target 2', data.plan.target_2 ? `₹${data.plan.target_2}` : '-'),
+          card('Risk/Reward', data.plan.risk_reward),
+          card('VWAP', data.indicators.vwap),
+          card('RSI (14)', data.indicators.rsi14),
+        ];
+        document.getElementById('result').innerHTML = html.join('');
+        document.getElementById('status').textContent = `Updated at ${new Date().toLocaleTimeString()}`;
+      } catch (err) {
+        document.getElementById('status').textContent = err.message;
+      }
+    }
+
+    document.getElementById('analyzeBtn').addEventListener('click', () => {
+      runAnalysis();
+      clearInterval(refreshTimer);
+      refreshTimer = setInterval(runAnalysis, 60_000);
+    });
+  </script>
+</body>
+</html>
